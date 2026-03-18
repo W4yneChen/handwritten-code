@@ -1,20 +1,11 @@
 import js from '@eslint/js';
 import globals from 'globals';
-import prettierPlugin from 'eslint-plugin-prettier';
-import prettierConfig from 'eslint-config-prettier';
+import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import { defineConfig } from 'eslint/config';
 
 export default defineConfig([
-  ...js.configs.recommended,
-  {
-    ...prettierConfig,
-    plugins: {
-      prettier: prettierPlugin,
-    },
-    rules: {
-      'prettier/prettier': 'error',
-    },
-  },
+  js.configs.recommended,
+  eslintPluginPrettierRecommended,
   {
     files: ['**/*.js'],
     ignores: ['node_modules/**'],
