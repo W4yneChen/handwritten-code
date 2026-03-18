@@ -4,7 +4,7 @@ const STATE = {
   REJECTED: 'rejected',
 };
 
-class MyPromise {
+module.exports = class MyPromise {
   constructor(executor) {
     this.state = STATE.PENDING;
     this.value = undefined;
@@ -293,6 +293,4 @@ class MyPromise {
 
     return { promise, resolve, reject };
   }
-}
-
-module.exports = MyPromise;
+};
