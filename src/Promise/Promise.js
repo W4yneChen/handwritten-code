@@ -12,7 +12,7 @@ module.exports = class MyPromise {
     this.onFulfilledCallbacks = [];
     this.onRejectedCallbacks = [];
 
-    const resolve = value => {
+    const realResolve = value => {
       this.state = STATE.FULFILLED;
       this.value = value;
       this.onFulfilledCallbacks.forEach(fn => fn());
@@ -28,14 +28,14 @@ module.exports = class MyPromise {
       this.onRejectedCallbacks = [];
     };
 
-    const realResolve = value => {
+    const resolve = value => {
       if (this.state != STATE.PENDING) return;
 
-      this.resolvePromise(this, value, resolve, reject);
+      this.resolvePromise(this, value, realResolve, reject);
     };
 
     try {
-      executor(realResolve, reject);
+      executor(resolve, reject);
     } catch (e) {
       reject(e);
     }
@@ -153,11 +153,12 @@ module.exports = class MyPromise {
 
   static all(iterable) {
     return new MyPromise((resolve, reject) => {
+      let called = false;
+
       try {
         const promises = [...iterable].map(MyPromise.resolve);
         const result = [];
         let completedCount = 0;
-        let called = false;
 
         if (!promises.length) {
           resolve([]);
@@ -168,8 +169,8 @@ module.exports = class MyPromise {
             value => {
               if (called) return;
               result[index] = value;
-              completedCount++;
-              if (completedCount === promises.length) {
+
+              if (++completedCount === promises.length) {
                 called = true;
                 resolve(result);
               }
@@ -182,6 +183,47 @@ module.exports = class MyPromise {
           )
         );
       } catch (e) {
+        if (called) return;
+        called = true;
+        reject(e);
+      }
+    });
+  }
+
+  static any(iterable) {
+    return new MyPromise((resolve, reject) => {
+      let called = false;
+
+      try {
+        const promises = [...iterable].map(MyPromise.resolve);
+        const errors = [];
+        let errorCount = 0;
+
+        if (!promises.length) {
+          reject(new AggregateError([], 'All promises were rejected'));
+        }
+
+        promises.forEach((promise, index) =>
+          promise.then(
+            value => {
+              if (called) return;
+              called = true;
+              resolve(value);
+            },
+            reason => {
+              if (called) return;
+              errors[index] = reason;
+
+              if (++errorCount === promises.length) {
+                called = true;
+                reject(new AggregateError(errors, 'All promises were rejected'));
+              }
+            }
+          )
+        );
+      } catch (e) {
+        if (called) return;
+        called = true;
         reject(e);
       }
     });
@@ -189,9 +231,10 @@ module.exports = class MyPromise {
 
   static race(iterable) {
     return new MyPromise((resolve, reject) => {
+      let called = false;
+
       try {
         const promises = [...iterable].map(MyPromise.resolve);
-        let called = false;
 
         if (!promises.length) {
           resolve([]);
@@ -212,6 +255,8 @@ module.exports = class MyPromise {
           )
         );
       } catch (e) {
+        if (called) return;
+        called = true;
         reject(e);
       }
     });
@@ -231,8 +276,8 @@ module.exports = class MyPromise {
         promises.forEach((promise, index) =>
           promise
             .then(
-              value => (result[index] = { status: 'fulfilled', value }),
-              reason => (result[index] = { status: 'rejected', reason })
+              value => (result[index] = { status: STATE.FULFILLED, value }),
+              reason => (result[index] = { status: STATE.REJECTED, reason })
             )
             .finally(() => {
               if (++completedCount === promises.length) {
@@ -241,43 +286,7 @@ module.exports = class MyPromise {
             })
         );
       } catch (e) {
-        resolve({ status: 'rejected', reason: e });
-      }
-    });
-  }
-
-  static any(iterable) {
-    return new MyPromise((resolve, reject) => {
-      try {
-        const promises = [...iterable].map(MyPromise.resolve);
-        const errors = [];
-        let errorCount = 0;
-        let called = false;
-
-        if (!promises.length) {
-          reject(new AggregateError([], 'All promises were rejected'));
-        }
-
-        promises.forEach((promise, index) =>
-          promise.then(
-            value => {
-              if (called) return;
-              called = true;
-              resolve(value);
-            },
-            reason => {
-              if (called) return;
-              errors[index] = reason;
-              errorCount++;
-              if (errorCount === promises.length) {
-                called = true;
-                reject(new AggregateError(errors, 'All promises were rejected'));
-              }
-            }
-          )
-        );
-      } catch (e) {
-        reject(e);
+        resolve({ status: STATE.REJECTED, reason: e });
       }
     });
   }
